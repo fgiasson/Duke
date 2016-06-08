@@ -1,6 +1,7 @@
 
 package no.priv.garshol.duke.datasources;
 
+import java.util.Collection;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
@@ -22,10 +23,12 @@ public class CSVDataSource extends ColumnarDataSource {
   private int skiplines;
   private boolean hasheader;
   private char separator;
+  private int buffer_size;
 
   public CSVDataSource() {
     super();
     this.hasheader = true;
+    this.buffer_size = 65386;
   }
 
   public String getInputFile() {
@@ -68,6 +71,14 @@ public class CSVDataSource extends ColumnarDataSource {
     this.separator = separator;
   }
 
+  public int getBufferSize() {
+    return buffer_size;
+  }
+
+  public void setBufferSize(int buffer_size) {
+    this.buffer_size = buffer_size;
+  }
+
   // this is used only for testing
   public void setReader(Reader reader) {
     this.directreader = reader;
@@ -88,7 +99,7 @@ public class CSVDataSource extends ColumnarDataSource {
           in = new InputStreamReader(new FileInputStream(file), encoding);
       }
 
-      CSVReader csv = new CSVReader(in);
+      CSVReader csv = new CSVReader(in, buffer_size, file);
       if (separator != 0)
         csv.setSeparator(separator);
       return new CSVRecordIterator(csv);
@@ -110,6 +121,8 @@ public class CSVDataSource extends ColumnarDataSource {
     cw.writeParam("header-line", getHeaderLine());
     if (getSeparator() != 0)
       cw.writeParam("separator", getSeparator());
+    if (getBufferSize() != 65386)
+      cw.writeParam("buffer-size", getBufferSize());
 
     // Write columns
     writeColumnsConfig(cw);
@@ -123,7 +136,7 @@ public class CSVDataSource extends ColumnarDataSource {
 
   public class CSVRecordIterator extends RecordIterator {
     private CSVReader reader;
-    private int[] index;     // what index in row to find colum[ix] value in
+    private int[] index;     // what index in row to find column[ix] value in
     private Column[] column; // all the columns, in random order
     private RecordBuilder builder;
     private Record nextrecord;
@@ -132,10 +145,14 @@ public class CSVDataSource extends ColumnarDataSource {
       this.reader = reader;
       this.builder = new RecordBuilder(CSVDataSource.this);
 
+      // using this in case there are more properties than columns (that is,
+      // two different properties may come from the same column)
+      Collection<Column> allcolumns = getColumns();
+
       // index here is random 0-n. index[0] gives the column no in the CSV
       // file, while colname[0] gives the corresponding column name.
-      index = new int[columns.size()];
-      column = new Column[columns.size()];
+      index = new int[allcolumns.size()];
+      column = new Column[allcolumns.size()];
 
       // skip the required number of lines before getting to the data
       for (int ix = 0; ix < skiplines; ix++)
@@ -163,7 +180,7 @@ public class CSVDataSource extends ColumnarDataSource {
 
       // build the 'index' and 'column' indexes
       int count = 0;
-      for (Column c : getColumns()) {
+      for (Column c : allcolumns) {
         boolean found = false;
         for (int ix = 0; ix < header.length; ix++) {
           if (header[ix].equals(c.getName())) {
