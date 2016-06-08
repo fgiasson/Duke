@@ -67,6 +67,7 @@ public class LuceneDatabase implements Database {
   private float min_relevance;
   private boolean overwrite;
   private String path;
+  private int max_clause_count;
   private boolean fuzzy_search;
   public BoostMode boost_mode;
 
@@ -77,6 +78,7 @@ public class LuceneDatabase implements Database {
     this.analyzer = new StandardAnalyzer(Version.LUCENE_CURRENT);
     this.maintracker = new EstimateResultTracker();
     this.max_search_hits = 1000000;
+    this.max_clause_count = 1024;
     this.fuzzy_search = true; // on by default
     this.boost_mode = BoostMode.QUERY;
   }
@@ -122,6 +124,20 @@ public class LuceneDatabase implements Database {
   }
 
   /**
+   * Returns the the max-clause-count used by the Lucene database
+   */
+  public int getMaxClauseCount() {
+    return max_clause_count;
+  }
+
+  /**
+   * Set the max-clause-count to be used in the boolean queries in Lucene
+   */
+  public void setMaxClauseCount(int max_clause_count) {
+    this.max_clause_count = max_clause_count;
+  }
+    
+  /**
    * Tells the database to boost Lucene fields when searching for
    * candidate matches, depending on their probabilities. This can
    * help Lucene better pick the most interesting candidates.
@@ -142,6 +158,10 @@ public class LuceneDatabase implements Database {
    * Add the record to the index.
    */
   public void index(Record record) {
+
+    // set the max-clause-count for Lucene boolean queries
+    BooleanQuery.setMaxClauseCount(this.max_clause_count);      
+      
     if (directory == null)
       init();
 
@@ -270,6 +290,7 @@ public class LuceneDatabase implements Database {
     // ok, we didn't do a geosearch, so proceed as normal.
     // first we build the combined query for all lookup properties
     BooleanQuery query = new BooleanQuery();
+    
     for (Property prop : config.getLookupProperties()) {
       Collection<String> values = record.getValues(prop.getName());
       if (values == null)
