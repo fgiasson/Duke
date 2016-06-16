@@ -10,6 +10,9 @@ import java.lang.reflect.InvocationTargetException;
 import no.priv.garshol.duke.DukeException;
 import no.priv.garshol.duke.DukeConfigException;
 
+import java.io.StringWriter;
+import java.io.PrintWriter;
+
 public class ObjectUtils {
 
   /**
@@ -24,7 +27,17 @@ public class ObjectUtils {
         return c[ix];
     throw new DukeConfigException("No such " + klass + ": '" + name + "'");
   }
-  
+
+  /**
+   * Get the stacktrace of an exception as a string. This is used to unobfuscate the exceptions
+   * that may be thrown by some code called by the reflector
+   */
+  public static String getStackTraceStr(Exception ex) {
+    StringWriter errors = new StringWriter();
+    ex.printStackTrace(new PrintWriter(errors));
+    return errors.toString();
+  }
+    
   /**
    * Calls the named bean setter property on the object, converting
    * the given value to the correct type. Note that parameter 'prop'
@@ -63,13 +76,15 @@ public class ObjectUtils {
     } catch (IllegalArgumentException e) {
       throw new DukeConfigException("Couldn't set bean property " + prop +
                                     " on object of class " + object.getClass() +
-                                    ": " + e);
+                                    ": " + e + "\n\n" +
+				    getStackTraceStr(e));
     } catch (IllegalAccessException e) {
       throw new DukeException(e);
     } catch (InvocationTargetException e) {
       throw new DukeConfigException("Couldn't set bean property " + prop +
                                     " on object of class " + object.getClass() +
-                                    ": " + e);
+                                    ": " + e + "\n\n" +
+				    getStackTraceStr(e));
     }
   }
 
